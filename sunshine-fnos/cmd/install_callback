@@ -1,5 +1,5 @@
 #!/bin/bash
-# 安装后：1) 确认离线镜像  2) uinput 模块  3) mDNS 广播（Moonlight 自动发现）
+# 安装后：1) 确认离线镜像  2) 固化串流目标配置  3) uinput 模块  4) mDNS 广播（Moonlight 自动发现）
 APP_DIR="${TRIM_APPDEST:-/var/apps/sunshinestream/target}"
 IMAGE_TAR="$APP_DIR/images/sunshine-stream.tar.gz"
 IMAGE="sunshine-stream:latest"
@@ -13,13 +13,30 @@ if command -v docker >/dev/null 2>&1; then
     docker image inspect "$IMAGE" --format '镜像就绪: {{.RepoTags}}' 2>/dev/null
 fi
 
-# ---------- 2. uinput（鼠标键盘注入） ----------
+# ---------- 2. 串流目标配置（此时数据目录已创建，写一份持久配置） ----------
+ENV_FILE="$APP_DIR/docker/app.env"
+VAR_DIR="$(dirname "$APP_DIR")/var"
+if [ -f "$ENV_FILE" ] && [ -d "$VAR_DIR" ] && [ ! -f "$VAR_DIR/app.conf" ]; then
+    APP_URL=$(sed -n 's/^APP_URL=//p' "$ENV_FILE" | head -n1)
+    APP_TITLE=$(sed -n 's/^APP_TITLE=//p' "$ENV_FILE" | head -n1)
+    APP_MODE=$(sed -n 's/^APP_MODE=//p' "$ENV_FILE" | head -n1)
+    APP_RES=$(sed -n 's/^APP_RES=//p' "$ENV_FILE" | head -n1)
+    {
+        printf 'url=%s\n' "${APP_URL:-http://192.168.5.11:3000}"
+        printf 'title=%s\n' "${APP_TITLE:-我的应用}"
+        printf 'mode=%s\n' "${APP_MODE:-kiosk}"
+        printf 'res=%s\n' "${APP_RES:-1920x1080}"
+        printf 'seed=%s\n' "${APP_URL:-http://192.168.5.11:3000}"
+    } > "$VAR_DIR/app.conf" 2>/dev/null && echo "串流目标已固化：$APP_URL"
+fi
+
+# ---------- 3. uinput（鼠标键盘注入） ----------
 modprobe uinput 2>/dev/null
 [ -w /etc/modules-load.d ] && echo "uinput" > /etc/modules-load.d/sunshinestream.conf
 [ -e /dev/uinput ] || mknod /dev/uinput c 10 223 2>/dev/null
 [ -e /dev/uinput ] && chmod 666 /dev/uinput 2>/dev/null
 
-# ---------- 3. mDNS 广播（容器内无 dbus，无法自行发布，改由宿主 avahi 发布） ----------
+# ---------- 4. mDNS 广播（容器内无 dbus，无法自行发布，改由宿主 avahi 发布） ----------
 # Sunshine 的 mDNS 服务名为 _nvstream._tcp，端口 47989（Moonlight 靠它自动发现主机）
 if [ -d /etc/avahi/services ]; then
     cat > /etc/avahi/services/sunshine-nvstream.service <<'XML'

@@ -8,6 +8,15 @@
             "port": "47990",
             "url": "/",
             "allUsers": false
+        },
+        "sunshinestream.console": {
+            "title": "串流控制台",
+            "icon": "images/icon-{0}.png",
+            "type": "url",
+            "protocol": "http",
+            "port": "47991",
+            "url": "/",
+            "allUsers": true
         }
     }
 }

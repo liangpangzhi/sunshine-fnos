@@ -1,9 +1,125 @@
 #!/bin/bash
-# 安装前：把离线镜像导入 Docker（幂等，失败不阻断安装；启动时还会再检查一次）
-APP_DIR="${TRIM_APPDEST:-/var/apps/sunshinestream/target}"
+### 安装前执行：把安装向导里填写的「应用地址」落到待安装副本
+###  1) 校验 / 规范化地址（缺 http:// 自动补全）
+###  2) 写 docker/app.env（容器启动时读取，决定 Chromium 打开哪个应用）
+###  3) 备份一份到 etc 目录，升级时可以沿用上一次的地址
+### 说明：$TRIM_PKGINST_TEMP_DIR 是"待安装副本"，安装完成才会被搬到 $TRIM_APPDEST，
+###       所以配置必须写在这里，否则会被覆盖。
+
+APPNAME=sunshinestream
+LOG="${TRIM_TEMP_LOGFILE:-/tmp/sunshinestream-install.log}"
+SRC="${TRIM_PKGINST_TEMP_DIR:-$TRIM_APPDEST}"
+[ -d "$SRC" ] || SRC="$TRIM_APPDEST"
+ETC="${TRIM_PKGETC:-/var/apps/$APPNAME/etc}"
+APP_DIR="${TRIM_APPDEST:-/var/apps/$APPNAME/target}"
 IMAGE_TAR="$APP_DIR/images/sunshine-stream.tar.gz"
 IMAGE="sunshine-stream:latest"
 
+fail() {
+    echo "$1"
+    echo "$1" >> "$LOG" 2>/dev/null
+    exit 1
+}
+
+# ---------- 1. 解析向导参数（升级时允许为空，沿用上次配置） ----------
+raw_url="${wizard_app_url:-}"
+app_title="${wizard_app_title:-}"
+app_mode="${wizard_mode:-}"
+app_res="${wizard_resolution:-}"
+USER_URL_GIVEN=0
+[ -n "$raw_url" ] && USER_URL_GIVEN=1
+
+read_env_file() {   # 从已有的 app.env 里取某个键
+    [ -f "$1" ] || return 0
+    sed -n "s/^$2=//p" "$1" 2>/dev/null | head -n1
+}
+
+PREV_ENV=""
+for cand in "$ETC/app.env.installed" "$APP_DIR/docker/app.env"; do
+    if [ -f "$cand" ]; then PREV_ENV="$cand"; break; fi
+done
+
+if [ -z "$raw_url" ] && [ -n "$PREV_ENV" ]; then
+    raw_url=$(read_env_file "$PREV_ENV" APP_URL)
+    echo "未填写地址（升级安装），沿用上次配置：$raw_url"
+fi
+[ -n "$app_title" ] || app_title=$(read_env_file "$PREV_ENV" APP_TITLE)
+[ -n "$app_mode" ] || app_mode=$(read_env_file "$PREV_ENV" APP_MODE)
+[ -n "$app_res" ] || app_res=$(read_env_file "$PREV_ENV" APP_RES)
+
+[ -n "$raw_url" ] || raw_url="http://192.168.5.11:3000"
+[ -n "$app_title" ] || app_title="我的应用"
+[ -n "$app_mode" ] || app_mode="kiosk"
+[ -n "$app_res" ] || app_res="1920x1080"
+
+# ---------- 2. 地址规范化与校验 ----------
+# 只去掉首尾空白；中间含空白一律判为非法（不能悄悄把 "not a url" 变成 "notaurl"）
+APP_URL=$(printf '%s' "$raw_url" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+case "$APP_URL" in
+    http://*|https://*) ;;
+    *) APP_URL="http://$APP_URL" ;;
+esac
+
+if ! printf '%s' "$APP_URL" | grep -Eq '^https?://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$'; then
+    fail "应用地址格式不正确：$raw_url
+请填写形如 http://192.168.5.11:3000 的地址（支持 http / https，可带端口和路径）。"
+fi
+
+HOSTPART=${APP_URL#*://}
+HOSTPART=${HOSTPART%%/*}
+[ -n "$HOSTPART" ] || fail "应用地址缺少主机名：$raw_url
+请填写形如 http://192.168.5.11:3000 的地址。"
+
+case "$app_mode" in
+    kiosk|browser|desktop) ;;
+    *) app_mode="kiosk" ;;
+esac
+case "$app_res" in
+    1280x720|1920x1080) ;;
+    *) app_res="1920x1080" ;;
+esac
+
+# ---------- 3. 写入待安装副本的 app.env ----------
+write_env() {
+    local dir="$1"
+    [ -d "$dir/docker" ] || return 0
+    cat > "$dir/docker/app.env" <<EOF
+APP_URL=$APP_URL
+APP_TITLE=$app_title
+APP_MODE=$app_mode
+APP_RES=$app_res
+EOF
+}
+
+write_env "$SRC"
+[ "$SRC" = "$APP_DIR" ] || write_env "$APP_DIR"
+
+mkdir -p "$ETC" 2>/dev/null
+cp -f "$SRC/docker/app.env" "$ETC/app.env.installed" 2>/dev/null
+chmod 644 "$ETC/app.env.installed" 2>/dev/null
+
+# ---------- 3.5 直接写入持久化运行配置（升级/安装都能立即生效） ----------
+# 数据目录：/var/apps/<app>/var -> /vol1/@appdata/<app>，容器里挂成 /appdata
+VAR_DIR=""
+for d in "$(dirname "$APP_DIR")/var" "/var/apps/$APPNAME/var"; do
+    if [ -d "$d" ]; then VAR_DIR="$d"; break; fi
+done
+if [ -n "$VAR_DIR" ] && { [ "$USER_URL_GIVEN" = "1" ] || [ ! -f "$VAR_DIR/app.conf" ]; }; then
+    {
+        printf 'url=%s\n' "$APP_URL"
+        printf 'title=%s\n' "$app_title"
+        printf 'mode=%s\n' "$app_mode"
+        printf 'res=%s\n' "$app_res"
+        printf 'seed=%s\n' "$APP_URL"
+    } > "$VAR_DIR/app.conf.tmp" 2>/dev/null && mv "$VAR_DIR/app.conf.tmp" "$VAR_DIR/app.conf" 2>/dev/null \
+        && echo "运行配置已写入：$VAR_DIR/app.conf"
+fi
+
+echo "串流目标应用：$app_title"
+echo "应用地址：$APP_URL"
+echo "打开方式：$app_mode，分辨率：$app_res"
+
+# ---------- 4. 离线镜像导入（幂等，失败不阻断；启动时还会再试） ----------
 if command -v docker >/dev/null 2>&1; then
     if ! docker image inspect "$IMAGE" >/dev/null 2>&1 && [ -f "$IMAGE_TAR" ]; then
         echo "导入离线镜像 ..."
@@ -11,7 +127,7 @@ if command -v docker >/dev/null 2>&1; then
     fi
 fi
 
-# uinput 内核模块（鼠标键盘注入）
+# ---------- 5. uinput 内核模块（鼠标键盘注入） ----------
 modprobe uinput 2>/dev/null && echo "uinput 已加载"
 [ -w /etc/modules-load.d ] && echo "uinput" > /etc/modules-load.d/sunshinestream.conf
 [ -e /dev/uinput ] || mknod /dev/uinput c 10 223 2>/dev/null

@@ -17,3 +17,7 @@ sunshine-fnos/app/images/sunshine-stream.tar.gz
 Thumbs.db
 *.swp
 *.swo
+
+# ===== Python 缓存 =====
+__pycache__/
+*.pyc

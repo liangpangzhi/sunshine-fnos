@@ -1,7 +1,7 @@
 appname=sunshinestream
-version=3.1.1
+version=3.2.0
 display_name=Sunshine 串流
-desc=基于 LizardByte Sunshine 的桌面串流服务（离线版）。安装包已内置基础镜像与 sway/Chromium/中文字体/VAAPI 运行环境，安装全程无需联网。内置虚拟桌面（1080p60）与全屏浏览器，自动打开 NAS 上的 DecoTV 影视站（http://NAS-IP:13006），通过 NVIDIA Quadro P620 NVENC 硬件编码，供电视端 Moonlight 串流观看。Web 管理界面：https://NAS-IP:47990
+desc=把飞牛 NAS 变成串流主机：安装时填写任意应用地址（Web 应用均可），即可在电视/手机/平板用 Moonlight 串流该应用；内置虚拟桌面、中文字体与串流控制台，装好后还能随时换地址、无需重装。离线安装包已内置运行镜像，全程无需联网，支持 NVIDIA/AMD 硬件编码。Web 管理界面：https://NAS-IP:47990，串流控制台：http://NAS-IP:47991
 source=thirdparty
 platform=x86
 

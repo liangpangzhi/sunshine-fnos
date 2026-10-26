@@ -1,0 +1,108 @@
+[
+  {
+    "stepTitle": "串流目标应用",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "填写你要在电视 / 手机 / 平板上<b>串流显示的任意应用地址</b>（任何 Web 应用都可以）。<br>示例：DecoTV <code>http://192.168.5.11:3000</code>、飞牛影视 <code>http://192.168.5.11:5666</code>、NAS 管理页 <code>https://192.168.5.11:5667</code>。<br>安装完成后，也可以随时在飞牛桌面的「串流控制台」里换地址，<b>无需重新安装</b>。"
+      },
+      {
+        "type": "text",
+        "field": "wizard_app_url",
+        "label": "应用地址",
+        "initValue": "http://192.168.5.11:3000",
+        "rules": [
+          {
+            "required": true,
+            "message": "请填写要串流的应用地址"
+          },
+          {
+            "max": 300,
+            "message": "地址过长"
+          },
+          {
+            "pattern": "^(https?://)?[A-Za-z0-9._~:/?#\\[\\]@!$&()*+,;=%-]+$",
+            "message": "地址格式不正确，示例：http://192.168.5.11:3000"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_app_title",
+        "label": "应用名称",
+        "initValue": "我的应用",
+        "rules": [
+          {
+            "required": true,
+            "message": "请填写应用名称"
+          },
+          {
+            "max": 24,
+            "message": "名称不超过 24 个字符"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stepTitle": "显示方式",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "全屏沉浸：没有地址栏，画面铺满电视，适合影视、看板、网页应用。<br>窗口模式：保留浏览器地址栏与标签页，方便在应用里继续跳转。<br>仅虚拟桌面：不自动打开浏览器，串流一个干净的桌面（可用 NAS 上的鼠标键盘操作）。"
+      },
+      {
+        "type": "select",
+        "field": "wizard_mode",
+        "label": "打开方式",
+        "initValue": "kiosk",
+        "options": [
+          {
+            "label": "全屏沉浸（无地址栏，推荐）",
+            "value": "kiosk"
+          },
+          {
+            "label": "窗口 + 地址栏",
+            "value": "browser"
+          },
+          {
+            "label": "仅虚拟桌面（不打开浏览器）",
+            "value": "desktop"
+          }
+        ],
+        "rules": [
+          {
+            "required": true,
+            "message": "请选择打开方式"
+          }
+        ]
+      },
+      {
+        "type": "select",
+        "field": "wizard_resolution",
+        "label": "虚拟桌面分辨率",
+        "initValue": "1920x1080",
+        "options": [
+          {
+            "label": "1920×1080（推荐）",
+            "value": "1920x1080"
+          },
+          {
+            "label": "1280×720（低带宽更流畅）",
+            "value": "1280x720"
+          }
+        ],
+        "rules": [
+          {
+            "required": true,
+            "message": "请选择分辨率"
+          }
+        ]
+      },
+      {
+        "type": "tips",
+        "helpText": "串流客户端（Moonlight）连接方式：<code>https://NAS-IP:47990</code> 完成配对，然后在 Moonlight 里选 <b>Desktop</b> 开始串流。"
+      }
+    ]
+  }
+]

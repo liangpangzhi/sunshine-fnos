@@ -6,21 +6,27 @@ services:
     network_mode: host
     privileged: true
     runtime: nvidia
+    # APP_URL / APP_TITLE / APP_MODE / APP_RES 由安装向导写入 app.env
+    # （安装脚本 cmd/install_init 会按用户填写的应用地址重写该文件）
+    env_file:
+      - ./app.env
     environment:
       - TZ=Asia/Shanghai
       # Sunshine 的账号/配对信息存放在 $HOME/.config/sunshine，指向持久卷避免重装丢失
       - HOME=/config
-      - DECO_URL=${DECO_URL:-http://192.168.5.11:13006}
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
     devices:
       - /dev/dri:/dev/dri
     volumes:
       - sunshine-config:/config
+      # 串流目标配置（app.conf）落在应用数据目录：升级不丢，可在「串流控制台」随时改地址
+      - /var/apps/sunshinestream/var:/appdata
       # 脚本外挂，改动无需重建镜像
       - ./start.sh:/start.sh:ro
       - ./sway-sunshine.conf:/etc/sway/sunshine-sway.conf:ro
       - ./mouse-bridge.py:/usr/local/bin/mouse-bridge.py:ro
+      - ./console.py:/usr/local/bin/console.py:ro
       # 输入设备：Sunshine 通过 /dev/uinput 创建虚拟鼠标键盘
       - /dev/input:/dev/input
       - /run/udev:/run/udev:ro

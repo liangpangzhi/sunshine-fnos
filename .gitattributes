@@ -1,0 +1,11 @@
+# 统一使用 LF：安装脚本在 Linux 上必须是 LF，否则会 bad interpreter
+* text=auto eol=lf
+
+*.PNG binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.tar.gz binary
+*.fpk binary
+*.apk binary
+*.exe binary

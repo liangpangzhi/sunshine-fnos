@@ -1,11 +1,61 @@
 #!/bin/bash
 # Sunshine 串流容器启动脚本
-#   Xvfb(1080p60) -> PulseAudio 虚拟扬声器 -> Chromium 全屏 DecoTV -> Sunshine(NVENC) 串流
+#   Xvfb(可配置分辨率) -> PulseAudio 虚拟扬声器 -> Chromium 打开「任意应用地址」-> Sunshine(NVENC) 串流
+#   串流目标保存在 /appdata/app.conf，由「串流控制台」(47991) 随时修改，浏览器自动重启切换
 set -m
 
 export XDG_RUNTIME_DIR=/tmp/xdg-runtime
 mkdir -p "$XDG_RUNTIME_DIR" /var/log /config
 chmod 700 "$XDG_RUNTIME_DIR"
+
+# ---------- 串流目标配置 ----------
+CFG_DIR=/appdata
+CFG="$CFG_DIR/app.conf"
+RELOAD_FLAG="$CFG_DIR/.reload"
+mkdir -p "$CFG_DIR"
+
+cfg_get() { sed -n "s/^$1=//p" "$CFG" 2>/dev/null | head -n1; }
+conf_write() {  # url title mode res seed
+    mkdir -p "$CFG_DIR"
+    {
+        printf 'url=%s\n' "$(printf '%s' "$1" | tr -d '\r\n')"
+        printf 'title=%s\n' "$(printf '%s' "$2" | tr -d '\r\n')"
+        printf 'mode=%s\n' "$(printf '%s' "$3" | tr -d '\r\n')"
+        printf 'res=%s\n' "$(printf '%s' "$4" | tr -d '\r\n')"
+        printf 'seed=%s\n' "$(printf '%s' "$5" | tr -d '\r\n')"
+    } > "$CFG.tmp" 2>/dev/null && mv "$CFG.tmp" "$CFG"
+}
+
+ENV_URL="${APP_URL:-}"
+ENV_TITLE="${APP_TITLE:-}"
+ENV_MODE="${APP_MODE:-kiosk}"
+ENV_RES="${APP_RES:-1920x1080}"
+
+if [ ! -f "$CFG" ]; then
+    # 首次启动：把安装时填写的地址固化下来
+    conf_write "${ENV_URL:-http://192.168.5.11:3000}" "${ENV_TITLE:-我的应用}" \
+               "${ENV_MODE:-kiosk}" "${ENV_RES:-1920x1080}" "${ENV_URL}"
+    echo "首次启动，串流目标：$(cfg_get url)"
+else
+    SEED=$(cfg_get seed)
+    CUR=$(cfg_get url)
+    if [ -n "$ENV_URL" ] && [ "$ENV_URL" != "$SEED" ] && [ "$CUR" = "$SEED" ]; then
+        # 安装 / 升级向导指定了新地址，且用户没有在控制台改过：以新地址为准
+        echo "检测到安装向导指定的新地址：$ENV_URL（原：$CUR），已切换"
+        conf_write "$ENV_URL" "${ENV_TITLE:-$(cfg_get title)}" \
+                   "${ENV_MODE:-$(cfg_get mode)}" "${ENV_RES:-$(cfg_get res)}" "$ENV_URL"
+    fi
+fi
+
+APP_URL_CUR=$(cfg_get url)
+APP_TITLE_CUR=$(cfg_get title)
+APP_MODE_CUR=$(cfg_get mode)
+APP_RES_CUR=$(cfg_get res)
+case "$APP_MODE_CUR" in kiosk|browser|desktop) ;; *) APP_MODE_CUR=kiosk ;; esac
+case "$APP_RES_CUR" in [0-9]*x[0-9]*) ;; *) APP_RES_CUR=1920x1080 ;; esac
+SCREEN_W=${APP_RES_CUR%x*}
+SCREEN_H=${APP_RES_CUR#*x}
+echo "串流目标：${APP_TITLE_CUR} (${APP_URL_CUR}) 模式=${APP_MODE_CUR} 分辨率=${SCREEN_W}x${SCREEN_H}"
 
 # ---------- 0. 系统 D-Bus（PulseAudio system 模式设置默认声卡依赖它） ----------
 mkdir -p /run/dbus
@@ -89,38 +139,99 @@ fi
 
 # ---------- 4. 启动 Xvfb 虚拟显示 ----------
 pkill -f "Xvfb :99" 2>/dev/null || true
-Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp -ac >/var/log/xvfb.log 2>&1 &
+Xvfb :99 -screen 0 "${SCREEN_W}x${SCREEN_H}x24" -nolisten tcp -ac >/var/log/xvfb.log 2>&1 &
 for _ in $(seq 1 20); do
     [ -S /tmp/.X11-unix/X99 ] && break
     sleep 0.5
 done
 if [ -S /tmp/.X11-unix/X99 ]; then
     export DISPLAY=:99
-    echo "Xvfb 就绪 (DISPLAY=:99)"
+    echo "Xvfb 就绪 (DISPLAY=:99, ${SCREEN_W}x${SCREEN_H})"
 else
     echo "警告：Xvfb 启动失败，请查看 /var/log/xvfb.log"
 fi
 
-# ---------- 5. Chromium 全屏打开 DecoTV ----------
+# ---------- 5. 串流控制台（换地址不用重装） ----------
+if command -v python3 >/dev/null 2>&1 && [ -f /usr/local/bin/console.py ]; then
+    APP_URL="$APP_URL_CUR" APP_TITLE="$APP_TITLE_CUR" APP_MODE="$APP_MODE_CUR" APP_RES="$APP_RES_CUR" \
+        python3 /usr/local/bin/console.py >>/var/log/console.log 2>&1 &
+    echo "串流控制台已启动: http://<NAS-IP>:47991"
+else
+    echo "提示：未找到 console.py，跳过串流控制台"
+fi
+
+# ---------- 6. 浏览器守护：按配置打开目标地址，配置变化/崩溃后自动重启 ----------
 CHROMIUM_BIN=""
 for c in /usr/bin/chromium /usr/lib/chromium/chromium; do
     if [ -x "$c" ]; then CHROMIUM_BIN="$c"; break; fi
 done
 
-if [ -n "$CHROMIUM_BIN" ]; then
-    "$CHROMIUM_BIN" \
-        --kiosk --no-sandbox --no-first-run --no-default-browser-check \
-        --disable-crash-reporter --disable-infobars --disable-dev-shm-usage \
-        --ozone-platform=x11 --window-position=0,0 --window-size=1920,1080 \
-        --autoplay-policy=no-user-gesture-required \
-        --disable-session-crashed-bubble --disable-features=Translate \
-        --user-data-dir=/config/chromium-profile \
-        "${DECO_URL:-http://192.168.5.11:13006}" >/var/log/chromium.log 2>&1 &
-else
-    echo "警告：未找到 Chromium 可执行文件"
-fi
+BPID=""
+stop_browser() {
+    [ -n "$BPID" ] && kill "$BPID" 2>/dev/null
+    pkill -f "user-data-dir=/config/chromium-profile" 2>/dev/null
+    sleep 1
+    pkill -9 -f "user-data-dir=/config/chromium-profile" 2>/dev/null
+    BPID=""
+}
 
-# ---------- 6. 本机 USB 鼠标/键盘桥接（Xvfb 不读本地输入设备） ----------
+browser_loop() {
+    BPID=""
+    while true; do
+        rm -f "$RELOAD_FLAG"
+        url=$(cfg_get url)
+        mode=$(cfg_get mode)
+        case "$mode" in kiosk|browser) ;; *) mode=kiosk ;; esac
+
+        if [ -z "$CHROMIUM_BIN" ] || [ "$mode" = "desktop" ] || [ -z "$url" ]; then
+            # 仅虚拟桌面：不打开浏览器
+            sleep 3
+            continue
+        fi
+
+        if [ "$mode" = "kiosk" ]; then
+            extra="--kiosk"
+        else
+            extra="--start-maximized"
+        fi
+
+        "$CHROMIUM_BIN" \
+            $extra --no-sandbox --no-first-run --no-default-browser-check \
+            --disable-crash-reporter --disable-infobars --disable-dev-shm-usage \
+            --ozone-platform=x11 --window-position=0,0 \
+            --window-size="${SCREEN_W},${SCREEN_H}" \
+            --autoplay-policy=no-user-gesture-required --lang=zh-CN \
+            --disable-session-crashed-bubble --disable-features=Translate \
+            --user-data-dir=/config/chromium-profile \
+            "$url" >>/var/log/chromium.log 2>&1 &
+        BPID=$!
+        echo "[$(date '+%F %T')] 已打开 ${url}（模式 ${mode}）"
+
+        # 进程活着就守着；配置变化或收到 .reload 就重启
+        while kill -0 "$BPID" 2>/dev/null; do
+            sleep 2
+            new_url=$(cfg_get url)
+            new_mode=$(cfg_get mode)
+            if [ "$new_url" != "$url" ] || [ "$new_mode" != "$mode" ] || [ -f "$RELOAD_FLAG" ]; then
+                echo "[$(date '+%F %T')] 串流目标变更：${url} -> ${new_url}，重启浏览器"
+                stop_browser
+                break
+            fi
+        done
+
+        if [ -n "$BPID" ] && ! kill -0 "$BPID" 2>/dev/null; then
+            echo "[$(date '+%F %T')] 浏览器已退出，2 秒后重新打开"
+            stop_browser
+            sleep 2
+        else
+            sleep 1
+        fi
+    done
+}
+
+browser_loop &
+
+# ---------- 7. 本机 USB 鼠标/键盘桥接（Xvfb 不读本地输入设备） ----------
 if command -v python3 >/dev/null 2>&1 && [ -f /usr/local/bin/mouse-bridge.py ]; then
     DISPLAY=:99 python3 /usr/local/bin/mouse-bridge.py >/var/log/mouse-bridge.log 2>&1 &
     sleep 1
@@ -129,5 +240,5 @@ if command -v python3 >/dev/null 2>&1 && [ -f /usr/local/bin/mouse-bridge.py ]; 
         echo "提示：未检测到本地鼠标设备（可热插拔后重启应用）"
 fi
 
-# ---------- 7. Sunshine 前台运行 ----------
+# ---------- 8. Sunshine 前台运行 ----------
 exec /usr/bin/sunshine /config/sunshine.conf
