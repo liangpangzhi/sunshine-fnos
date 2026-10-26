@@ -1,0 +1,39 @@
+#!/bin/bash
+# 安装后：1) 确认离线镜像  2) uinput 模块  3) mDNS 广播（Moonlight 自动发现）
+APP_DIR="${TRIM_APPDEST:-/var/apps/sunshinestream/target}"
+IMAGE_TAR="$APP_DIR/images/sunshine-stream.tar.gz"
+IMAGE="sunshine-stream:latest"
+
+# ---------- 1. 离线镜像 ----------
+if command -v docker >/dev/null 2>&1; then
+    if ! docker image inspect "$IMAGE" >/dev/null 2>&1 && [ -f "$IMAGE_TAR" ]; then
+        echo "导入离线镜像 ..."
+        docker load -i "$IMAGE_TAR" || echo "镜像导入失败，将在启动时重试"
+    fi
+    docker image inspect "$IMAGE" --format '镜像就绪: {{.RepoTags}}' 2>/dev/null
+fi
+
+# ---------- 2. uinput（鼠标键盘注入） ----------
+modprobe uinput 2>/dev/null
+[ -w /etc/modules-load.d ] && echo "uinput" > /etc/modules-load.d/sunshinestream.conf
+[ -e /dev/uinput ] || mknod /dev/uinput c 10 223 2>/dev/null
+[ -e /dev/uinput ] && chmod 666 /dev/uinput 2>/dev/null
+
+# ---------- 3. mDNS 广播（容器内无 dbus，无法自行发布，改由宿主 avahi 发布） ----------
+# Sunshine 的 mDNS 服务名为 _nvstream._tcp，端口 47989（Moonlight 靠它自动发现主机）
+if [ -d /etc/avahi/services ]; then
+    cat > /etc/avahi/services/sunshine-nvstream.service <<'XML'
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+  <name replace-wildcards="yes">Sunshine (NAS)</name>
+  <service>
+    <type>_nvstream._tcp</type>
+    <port>47989</port>
+  </service>
+</service-group>
+XML
+    systemctl restart avahi-daemon 2>/dev/null && echo "mDNS 广播已发布（_nvstream._tcp:47989）"
+fi
+
+exit 0

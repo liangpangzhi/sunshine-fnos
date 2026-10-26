@@ -1,0 +1,13 @@
+{
+    ".url": {
+        "sunshinestream.Application": {
+            "title": "Sunshine 串流",
+            "icon": "images/icon-{0}.png",
+            "type": "url",
+            "protocol": "https",
+            "port": "47990",
+            "url": "/",
+            "allUsers": false
+        }
+    }
+}

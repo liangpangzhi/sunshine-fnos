@@ -1,0 +1,20 @@
+#!/bin/bash
+# 安装前：把离线镜像导入 Docker（幂等，失败不阻断安装；启动时还会再检查一次）
+APP_DIR="${TRIM_APPDEST:-/var/apps/sunshinestream/target}"
+IMAGE_TAR="$APP_DIR/images/sunshine-stream.tar.gz"
+IMAGE="sunshine-stream:latest"
+
+if command -v docker >/dev/null 2>&1; then
+    if ! docker image inspect "$IMAGE" >/dev/null 2>&1 && [ -f "$IMAGE_TAR" ]; then
+        echo "导入离线镜像 ..."
+        docker load -i "$IMAGE_TAR" || echo "镜像导入失败，将在应用启动时重试"
+    fi
+fi
+
+# uinput 内核模块（鼠标键盘注入）
+modprobe uinput 2>/dev/null && echo "uinput 已加载"
+[ -w /etc/modules-load.d ] && echo "uinput" > /etc/modules-load.d/sunshinestream.conf
+[ -e /dev/uinput ] || mknod /dev/uinput c 10 223 2>/dev/null
+[ -e /dev/uinput ] && chmod 666 /dev/uinput 2>/dev/null
+
+exit 0

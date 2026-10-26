@@ -1,0 +1,44 @@
+#!/bin/bash
+# 应用启停：镜像为离线预构建包，首次启动自动 docker load，无需 build
+
+APP_DIR="${TRIM_APPDEST:-/var/apps/sunshinestream/target}"
+COMPOSE_FILE="$APP_DIR/docker/docker-compose.yaml"
+IMAGE_TAR="$APP_DIR/images/sunshine-stream.tar.gz"
+IMAGE="sunshine-stream:latest"
+CONTAINER="sunshine-stream"
+
+load_image() {
+    if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+        return 0
+    fi
+    if [ -f "$IMAGE_TAR" ]; then
+        echo "导入离线镜像 $IMAGE ..."
+        docker load -i "$IMAGE_TAR"
+    else
+        echo "错误：镜像文件不存在 $IMAGE_TAR"
+        return 1
+    fi
+}
+
+case "$1" in
+  start)
+    load_image || exit 1
+    docker compose -f "$COMPOSE_FILE" up -d
+    ;;
+  stop)
+    docker compose -f "$COMPOSE_FILE" down
+    ;;
+  status)
+    STATE=$(docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null)
+    if [ "$STATE" = "true" ]; then
+      exit 0
+    fi
+    exit 1
+    ;;
+  *)
+    echo "usage: $0 {start|stop|status}"
+    exit 1
+    ;;
+esac
+
+exit 0

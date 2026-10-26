@@ -1,0 +1,6 @@
+#!/bin/bash
+# 卸载前：清理宿主侧集成（uinput 自加载配置、mDNS 广播）
+rm -f /etc/modules-load.d/sunshinestream.conf 2>/dev/null
+rm -f /etc/avahi/services/sunshine-nvstream.service 2>/dev/null
+systemctl restart avahi-daemon 2>/dev/null
+exit 0

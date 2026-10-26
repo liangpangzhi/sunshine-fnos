@@ -1,0 +1,5 @@
+#!/bin/bash
+echo 'aW1wb3J0IHN0cnVjdCwgc3lzCmZyb20gWGxpYiBpbXBvcnQgWCwgZGlzcGxheQoKZCA9IGRpc3BsYXkuRGlzcGxheSgiOjk5IikKcm9vdCA9IGQuc2NyZWVuKCkucm9vdApnID0gcm9vdC5nZXRfZ2VvbWV0cnkoKQp3LCBoID0gZy53aWR0aCwgZy5oZWlnaHQKcmF3ID0gcm9vdC5nZXRfaW1hZ2UoMCwgMCwgdywgaCwgWC5aUGl4bWFwLCAweGZmZmZmZmZmKS5kYXRhCiMgWlBpeG1hcCAyNGJpdCAtPiBCR1JYCm91dCA9IGJ5dGVhcnJheSgpCm91dCArPSBiIlA2XG4lZCAlZFxuMjU1XG4iICUgKHcsIGgpCmZvciBpIGluIHJhbmdlKDAsIGxlbihyYXcpLCA0KToKICAgIG91dCArPSBieXRlcygocmF3W2krMl0sIHJhd1tpKzFdLCByYXdbaV0pKQpzeXMuc3Rkb3V0LmJ1ZmZlci53cml0ZShieXRlcyhvdXQpKQo=' | base64 -d > /home/liang/shot.py
+docker cp /home/liang/shot.py sunshine-stream:/tmp/shot.py >/dev/null 2>&1
+docker exec -e DISPLAY=:99 sunshine-stream python3 /tmp/shot.py > /home/liang/screen.ppm 2>/home/liang/shot.err
+ls -la /home/liang/screen.ppm

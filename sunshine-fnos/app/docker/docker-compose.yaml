@@ -1,0 +1,29 @@
+services:
+  sunshine:
+    image: sunshine-stream:latest
+    container_name: sunshine-stream
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    runtime: nvidia
+    environment:
+      - TZ=Asia/Shanghai
+      # Sunshine 的账号/配对信息存放在 $HOME/.config/sunshine，指向持久卷避免重装丢失
+      - HOME=/config
+      - DECO_URL=${DECO_URL:-http://192.168.5.11:13006}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - sunshine-config:/config
+      # 脚本外挂，改动无需重建镜像
+      - ./start.sh:/start.sh:ro
+      - ./sway-sunshine.conf:/etc/sway/sunshine-sway.conf:ro
+      - ./mouse-bridge.py:/usr/local/bin/mouse-bridge.py:ro
+      # 输入设备：Sunshine 通过 /dev/uinput 创建虚拟鼠标键盘
+      - /dev/input:/dev/input
+      - /run/udev:/run/udev:ro
+
+volumes:
+  sunshine-config:

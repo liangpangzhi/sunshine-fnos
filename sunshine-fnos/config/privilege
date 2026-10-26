@@ -1,0 +1,7 @@
+{
+  "defaults": {
+    "run-as": "root"
+  },
+  "username": "sunshine_user",
+  "groupname": "sunshine_group"
+}

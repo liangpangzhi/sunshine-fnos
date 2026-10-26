@@ -1,0 +1,19 @@
+# ===== 构建缓存与下载依赖 =====
+# build/ 内含 201 个 .deb / 8 个 .exe / 压缩包等，均为自动下载的依赖，不应入库
+/build/
+
+# ===== 打包产物与二进制 =====
+# .fpk 是离线安装包，sunshine-stream.tar.gz 是 534M 的 Docker 镜像，均走 GitHub Releases
+*.fpk
+*.apk
+*.exe
+sunshine-fnos/app/images/sunshine-stream.tar.gz
+
+# ===== 本地环境 / 记忆 =====
+.workbuddy/
+
+# ===== 系统与编辑器 =====
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

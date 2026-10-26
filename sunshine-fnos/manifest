@@ -1,0 +1,15 @@
+appname=sunshinestream
+version=3.1.1
+display_name=Sunshine 串流
+desc=基于 LizardByte Sunshine 的桌面串流服务（离线版）。安装包已内置基础镜像与 sway/Chromium/中文字体/VAAPI 运行环境，安装全程无需联网。内置虚拟桌面（1080p60）与全屏浏览器，自动打开 NAS 上的 DecoTV 影视站（http://NAS-IP:13006），通过 NVIDIA Quadro P620 NVENC 硬件编码，供电视端 Moonlight 串流观看。Web 管理界面：https://NAS-IP:47990
+source=thirdparty
+platform=x86
+
+maintainer=WorkBuddy User
+maintainer_url=https://github.com/LizardByte/Sunshine
+
+desktop_uidir=ui
+desktop_applaunchname=sunshinestream.Application
+
+service_port=47990
+ctl_stop=true
