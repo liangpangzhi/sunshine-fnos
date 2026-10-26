@@ -1,5 +1,7 @@
 # sunshinestream（飞牛 FnOS 串流应用）
 
+> 🌐 English version: [README_EN.md](README_EN.md)
+
 把 **飞牛 NAS** 变成一台「游戏串流主机」：在 NAS 上运行 [Sunshine](https://github.com/SunshineStream/Sunshine) 串流服务端 + 虚拟桌面（Xvfb + Chromium），电视 / 手机 / 平板通过 **Moonlight** 客户端直接连接，即可在大屏上播放 DecoTV 等网页内容，或串流其他应用。
 
 ## 特性
@@ -41,6 +43,15 @@ bash export-image.sh
 ## 安装
 
 详见 [离线安装说明.md](离线安装说明.md) 与 [安装配置指南](sunshine-fnos/安装配置指南.md)。简言之：在飞牛应用中心离线安装 `sunshinestream.fpk`，电视端用 Moonlight 连接 `https://<NAS-IP>:47990`。
+
+## 发布版本（Releases）
+
+二进制产物（`.fpk` 安装包、Docker 镜像）体积较大，不纳入 Git，已发布在 GitHub Releases：
+
+- `sunshinestream.fpk`：飞牛应用中心离线安装包
+- `sunshine-stream.tar.gz`：Docker 镜像（`docker load` 导入）
+
+下载地址：https://github.com/liangpangzhi/sunshine-fnos/releases/tag/v3.1.1
 
 ## 许可
 
