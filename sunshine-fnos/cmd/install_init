@@ -27,7 +27,13 @@ app_title="${wizard_app_title:-}"
 app_mode="${wizard_mode:-}"
 app_res="${wizard_resolution:-}"
 USER_URL_GIVEN=0
-[ -n "$raw_url" ] && USER_URL_GIVEN=1
+if [ -n "$raw_url" ]; then
+    USER_URL_GIVEN=1
+    # 安装代次标记：每次向导里填了地址就换一个，start.sh 靠它判断"该用向导的新地址"
+    APP_NONCE="$(date +%s)-$$"
+else
+    APP_NONCE=""
+fi
 
 read_env_file() {   # 从已有的 app.env 里取某个键
     [ -f "$1" ] || return 0
@@ -89,6 +95,7 @@ APP_TITLE=$app_title
 APP_MODE=$app_mode
 APP_RES=$app_res
 EOF
+    [ -n "$APP_NONCE" ] && echo "APP_NONCE=$APP_NONCE" >> "$dir/docker/app.env"
 }
 
 write_env "$SRC"
@@ -111,6 +118,7 @@ if [ -n "$VAR_DIR" ] && { [ "$USER_URL_GIVEN" = "1" ] || [ ! -f "$VAR_DIR/app.co
         printf 'mode=%s\n' "$app_mode"
         printf 'res=%s\n' "$app_res"
         printf 'seed=%s\n' "$APP_URL"
+        printf 'nonce=%s\n' "$APP_NONCE"
     } > "$VAR_DIR/app.conf.tmp" 2>/dev/null && mv "$VAR_DIR/app.conf.tmp" "$VAR_DIR/app.conf" 2>/dev/null \
         && echo "运行配置已写入：$VAR_DIR/app.conf"
 fi

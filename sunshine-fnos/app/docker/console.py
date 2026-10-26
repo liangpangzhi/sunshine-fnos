@@ -52,6 +52,7 @@ def read_conf():
         "mode": DEFAULT_MODE,
         "res": DEFAULT_RES,
         "seed": "",
+        "nonce": "",
     }
     try:
         with open(CONF, "r", encoding="utf-8") as f:
@@ -71,7 +72,8 @@ def write_conf(conf):
     os.makedirs(CONF_DIR, exist_ok=True)
     tmp = CONF + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        for k in ("url", "title", "mode", "res", "seed"):
+        # nonce 必须原样保留：它标记"上一次由安装向导写入"，丢掉会导致下次重启被 app.env 覆盖
+        for k in ("url", "title", "mode", "res", "seed", "nonce"):
             f.write("%s=%s\n" % (k, conf.get(k, "").replace("\n", " ").strip()))
     os.replace(tmp, CONF)
 

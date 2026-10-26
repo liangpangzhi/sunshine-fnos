@@ -15,7 +15,7 @@ RELOAD_FLAG="$CFG_DIR/.reload"
 mkdir -p "$CFG_DIR"
 
 cfg_get() { sed -n "s/^$1=//p" "$CFG" 2>/dev/null | head -n1; }
-conf_write() {  # url title mode res seed
+conf_write() {  # url title mode res seed nonce
     mkdir -p "$CFG_DIR"
     {
         printf 'url=%s\n' "$(printf '%s' "$1" | tr -d '\r\n')"
@@ -23,6 +23,7 @@ conf_write() {  # url title mode res seed
         printf 'mode=%s\n' "$(printf '%s' "$3" | tr -d '\r\n')"
         printf 'res=%s\n' "$(printf '%s' "$4" | tr -d '\r\n')"
         printf 'seed=%s\n' "$(printf '%s' "$5" | tr -d '\r\n')"
+        printf 'nonce=%s\n' "$(printf '%s' "$6" | tr -d '\r\n')"
     } > "$CFG.tmp" 2>/dev/null && mv "$CFG.tmp" "$CFG"
 }
 
@@ -30,21 +31,21 @@ ENV_URL="${APP_URL:-}"
 ENV_TITLE="${APP_TITLE:-}"
 ENV_MODE="${APP_MODE:-kiosk}"
 ENV_RES="${APP_RES:-1920x1080}"
+# 每次「在安装/升级向导里填了地址」都会带一个新的 APP_NONCE，
+# 用它区分「向导新填的地址」和「控制台里改过的地址」，两者互不覆盖
+ENV_NONCE="${APP_NONCE:-}"
 
 if [ ! -f "$CFG" ]; then
     # 首次启动：把安装时填写的地址固化下来
     conf_write "${ENV_URL:-http://192.168.5.11:3000}" "${ENV_TITLE:-我的应用}" \
-               "${ENV_MODE:-kiosk}" "${ENV_RES:-1920x1080}" "${ENV_URL}"
+               "${ENV_MODE:-kiosk}" "${ENV_RES:-1920x1080}" "${ENV_URL}" "$ENV_NONCE"
     echo "首次启动，串流目标：$(cfg_get url)"
-else
-    SEED=$(cfg_get seed)
-    CUR=$(cfg_get url)
-    if [ -n "$ENV_URL" ] && [ "$ENV_URL" != "$SEED" ] && [ "$CUR" = "$SEED" ]; then
-        # 安装 / 升级向导指定了新地址，且用户没有在控制台改过：以新地址为准
-        echo "检测到安装向导指定的新地址：$ENV_URL（原：$CUR），已切换"
-        conf_write "$ENV_URL" "${ENV_TITLE:-$(cfg_get title)}" \
-                   "${ENV_MODE:-$(cfg_get mode)}" "${ENV_RES:-$(cfg_get res)}" "$ENV_URL"
-    fi
+elif [ -n "$ENV_NONCE" ] && [ "$ENV_NONCE" != "$(cfg_get nonce)" ]; then
+    # 安装 / 重装 / 升级时向导里填了新地址：以新地址为准
+    echo "检测到安装向导指定的新地址：$ENV_URL（原：$(cfg_get url)），已切换"
+    conf_write "$ENV_URL" "${ENV_TITLE:-$(cfg_get title)}" \
+               "${ENV_MODE:-$(cfg_get mode)}" "${ENV_RES:-$(cfg_get res)}" \
+               "$ENV_URL" "$ENV_NONCE"
 fi
 
 APP_URL_CUR=$(cfg_get url)
@@ -166,6 +167,12 @@ for c in /usr/bin/chromium /usr/lib/chromium/chromium; do
     if [ -x "$c" ]; then CHROMIUM_BIN="$c"; break; fi
 done
 
+# 关掉翻译功能：否则外文/多语言页面会在串流画面右上角弹出翻译提示条，挡在电视上
+for pdir in /etc/chromium/policies/managed /etc/opt/chrome/policies/managed; do
+    mkdir -p "$pdir" 2>/dev/null
+    printf '{"TranslateEnabled": false}\n' > "$pdir/sunshinestream.json" 2>/dev/null
+done
+
 BPID=""
 stop_browser() {
     [ -n "$BPID" ] && kill "$BPID" 2>/dev/null
@@ -201,7 +208,8 @@ browser_loop() {
             --ozone-platform=x11 --window-position=0,0 \
             --window-size="${SCREEN_W},${SCREEN_H}" \
             --autoplay-policy=no-user-gesture-required --lang=zh-CN \
-            --disable-session-crashed-bubble --disable-features=Translate \
+            --hide-scrollbars --disable-translate \
+            --disable-session-crashed-bubble --disable-features=Translate,TranslateUI \
             --user-data-dir=/config/chromium-profile \
             "$url" >>/var/log/chromium.log 2>&1 &
         BPID=$!
